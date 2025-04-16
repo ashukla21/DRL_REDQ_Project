@@ -3,6 +3,11 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 import torch.optim as optim
+# LLM Integration
+import logging
+from ..llm_interface import LLMInterface
+from ..user_config import LLM_CONFIG
+# End LLM Integration
 from redq.algos.core import TanhGaussianPolicy, Mlp, soft_update_model1_with_model2, ReplayBuffer,\
     mbpo_target_entropy_dict
 
@@ -87,6 +92,11 @@ class REDQSACAgent(object):
         self.policy_update_delay = policy_update_delay
         self.device = device
 
+        # LLM Integration Setup
+        self.total_steps = 0
+        self.llm_interface = LLMInterface()
+        # End LLM Integration Setup
+
     def __get_current_num_data(self):
         # used to determine whether we should get action from policy or take random starting actions
         return self.replay_buffer.size
@@ -96,6 +106,21 @@ class REDQSACAgent(object):
         with torch.no_grad():
             if self.__get_current_num_data() > self.start_steps:
                 obs_tensor = torch.Tensor(obs).unsqueeze(0).to(self.device)
+
+                # --- LLM Exploration --- 
+                exploration_noise_scale = None
+                if LLM_CONFIG.get('use_llm_exploration', False) and \
+                   self.llm_interface.client and \
+                   self.total_steps % LLM_CONFIG.get('call_frequency', 100) == 0:
+                    exploration_noise_scale = self.llm_interface.get_exploration_noise_scale(obs)
+                    if exploration_noise_scale is not None:
+                        logging.info(f"Step {self.total_steps}: LLM suggested noise scale: {exploration_noise_scale}")
+                        # TODO: Apply the suggested noise scale. This might involve:
+                        # 1. Modifying the policy forward pass to accept a noise scale.
+                        # 2. Directly adding noise scaled by this value to the action outside the policy.
+                        pass # Placeholder for applying the scale
+                # --- End LLM Exploration ---
+
                 action_tensor = self.policy_net.forward(obs_tensor, deterministic=False,
                                              return_log_prob=False)[0]
                 action = action_tensor.cpu().numpy().reshape(-1)
@@ -134,6 +159,7 @@ class REDQSACAgent(object):
     def store_data(self, o, a, r, o2, d):
         # store one transition to the buffer
         self.replay_buffer.store(o, a, r, o2, d)
+        self.total_steps += 1 # Increment step counter here
 
     def sample_data(self, batch_size):
         # sample data from replay buffer
@@ -195,6 +221,30 @@ class REDQSACAgent(object):
         num_update = 0 if self.__get_current_num_data() <= self.delay_update_steps else self.utd_ratio
         for i_update in range(num_update):
             obs_tensor, obs_next_tensor, acts_tensor, rews_tensor, done_tensor = self.sample_data(self.batch_size)
+
+            # --- LLM Reward Shaping --- 
+            if LLM_CONFIG.get('use_llm_reward_shaping', False) and self.llm_interface.client:
+                # Note: Calling LLM for each transition in batch can be slow.
+                # Consider batching calls or calling less frequently if performance is an issue.
+                shaped_rewards = []
+                for i in range(obs_tensor.shape[0]): 
+                    state = obs_tensor[i].cpu().numpy()
+                    action = acts_tensor[i].cpu().numpy()
+                    next_state = obs_next_tensor[i].cpu().numpy()
+                    original_reward = rews_tensor[i].item()
+                    
+                    shaped_reward_component = self.llm_interface.get_shaped_reward(
+                        state, action, next_state, original_reward
+                    )
+                    shaped_rewards.append(shaped_reward_component)
+                
+                shaped_rewards_tensor = torch.tensor(shaped_rewards, dtype=torch.float32, device=self.device).unsqueeze(1)
+                # Add shaped reward to original reward
+                original_rewards_sum = rews_tensor.sum().item()
+                shaped_rewards_sum = shaped_rewards_tensor.sum().item()
+                rews_tensor = rews_tensor + shaped_rewards_tensor
+                logging.debug(f"Reward Shaping: Original Sum={original_rewards_sum:.2f}, Shaped Sum={shaped_rewards_sum:.2f}, New Sum={rews_tensor.sum().item():.2f}")
+            # --- End LLM Reward Shaping ---
 
             """Q loss"""
             y_q, sample_idxs = self.get_redq_q_target_no_grad(obs_next_tensor, rews_tensor, done_tensor)
