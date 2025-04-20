@@ -3,6 +3,7 @@ import together
 import logging
 from .user_config import LLM_CONFIG
 import requests
+import random
 
 
 # Configure logging
@@ -82,20 +83,29 @@ class LLMInterface:
             if response.status_code == 200:
                 res = response.json()['choices'][0]['text']
                 print("Response from LLM:")
-                string = ''        
-                for c in res:
-                    if c.isdigit() or c == '.':
-                        string += c
-                        if len(string) == 3:
-                            break
-                string = float(string)
-                print(string)
-                return string
+                string = ''    
+                try:    
+                    for c in res:
+                        if c.isdigit() or c == '.' or (c == '-' and len(string) == 0):
+                            string += c
+                            if len(string) >= 4:
+                                break
+                    string = float(string)
+                    print(string)
+                    return string
+                except ValueError:
+                    logging.warning(f"Could not parse float from LLM response: '{res}'")
+                    random_float = random.uniform(-0.2, 0.2)
+                    return random_float
 
             else:
+                print('NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNnnnnNNNNNN')
                 print(response.status_code)
                 logging.warning(f"Received unexpected response structure from LLM: {response}")
-                return None
+                random_float = random.uniform(-0.2, 0.2)
+                print('rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr')
+                print(random_float)
+                return random_float
 
         except Exception as e:
             logging.error(f"Error during LLM query: {e}")

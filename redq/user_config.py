@@ -56,9 +56,6 @@ LLM_CONFIG = {
         Given the current state observation {observation}, 
         suggest an exploration noise scale (a float between 0.1 and 1.0)
         to encourage exploration. Respond with only the float.
-
-        Example Response:
-        0.6
         """
     ),
     'prompt_template_reward': (

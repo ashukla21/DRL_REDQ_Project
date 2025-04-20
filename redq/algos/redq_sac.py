@@ -112,7 +112,7 @@ class REDQSACAgent(object):
                     self.llm_interface.client and \
                     self.total_steps % LLM_CONFIG.get('call_frequency', 100) == 0:
                     exploration_noise_scale = self.llm_interface.get_exploration_noise_scale(obs)
-                    
+                    exploration_noise_scale = abs(exploration_noise_scale)  # Ensure it's non-negative
                     if exploration_noise_scale is not None:
                         logging.info(f"Step {self.total_steps}: LLM suggested noise scale: {exploration_noise_scale}")
 
@@ -221,29 +221,32 @@ class REDQSACAgent(object):
         # when we only have very limited data, we don't make updates
         num_update = 0 if self.__get_current_num_data() <= self.delay_update_steps else self.utd_ratio
         for i_update in range(num_update):
+
             obs_tensor, obs_next_tensor, acts_tensor, rews_tensor, done_tensor = self.sample_data(self.batch_size)
 
             # --- LLM Reward Shaping --- 
             if LLM_CONFIG.get('use_llm_reward_shaping', False) and self.llm_interface.client:
-                # Note: Calling LLM for each transition in batch can be slow.
-                # Consider batching calls or calling less frequently if performance is an issue.
-                shaped_rewards = []
-                for i in range(obs_tensor.shape[0]): 
-                    state = obs_tensor[i].cpu().numpy()
-                    action = acts_tensor[i].cpu().numpy()
-                    next_state = obs_next_tensor[i].cpu().numpy()
-                    original_reward = rews_tensor[i].item()
-                    
-                    shaped_reward_component = self.llm_interface.get_shaped_reward(
-                        state, action, next_state, original_reward
-                    )
-                    shaped_rewards.append(shaped_reward_component)
-                
-                shaped_rewards_tensor = torch.tensor(shaped_rewards, dtype=torch.float32, device=self.device).unsqueeze(1)
+                # Compute the average of the batch tensors
+                avg_state = obs_tensor.mean(dim=0).cpu().numpy()
+                avg_action = acts_tensor.mean(dim=0).cpu().numpy()
+                avg_next_state = obs_next_tensor.mean(dim=0).cpu().numpy()
+                avg_original_reward = rews_tensor.mean().item()
+
+                # Make a single LLM call with the averaged values
+                shaped_reward_component = self.llm_interface.get_shaped_reward(
+                    avg_state, avg_action, avg_next_state, avg_original_reward
+                )
+
+                # Apply the shaped reward to the entire batch
+                shaped_rewards_tensor = torch.full(
+                    (rews_tensor.shape[0], 1), shaped_reward_component, dtype=torch.float32, device=self.device
+                )
+
                 # Add shaped reward to original reward
                 original_rewards_sum = rews_tensor.sum().item()
                 shaped_rewards_sum = shaped_rewards_tensor.sum().item()
                 rews_tensor = rews_tensor + shaped_rewards_tensor
+
                 logging.debug(f"Reward Shaping: Original Sum={original_rewards_sum:.2f}, Shaped Sum={shaped_rewards_sum:.2f}, New Sum={rews_tensor.sum().item():.2f}")
             # --- End LLM Reward Shaping ---
 
