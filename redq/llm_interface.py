@@ -2,6 +2,8 @@ import os
 import together
 import logging
 from .user_config import LLM_CONFIG
+import requests
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,7 +26,7 @@ class LLMInterface:
 
         self.config = config
         self.api_key = os.getenv('TOGETHER_API_KEY', config.get('api_key'))
-
+        self.fault = False
         if not self.api_key or self.api_key == 'YOUR_TOGETHER_API_KEY':
             logging.warning("TOGETHER_API_KEY not found or is placeholder. LLM queries will fail. "
                             "Set the TOGETHER_API_KEY environment variable or update user_config.py.")
@@ -45,6 +47,9 @@ class LLMInterface:
         self.temperature = self.config.get('temperature', 0.7)
 
     def query(self, prompt):
+        return 0
+                
+
         """
         Sends a prompt to the configured LLM and returns the response.
 
@@ -59,19 +64,53 @@ class LLMInterface:
             return None
 
         try:
-            response = self.client.Complete.create(
-                prompt=prompt,
-                model=self.model,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                stop=['\n'] # Stop generation at newline for cleaner single-value responses
-            )
+            # response = self.client.Complete.create(
+            #     prompt=prompt,
+            #     model=self.model,
+            #     max_tokens=self.max_tokens,
+            #     temperature=self.temperature,
+            #     stop=['\n'] # Stop generation at newline for cleaner single-value responses
+            # )
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "prompt": prompt,
+                "model": self.model,  # Replace with the model name if required
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
+                # "stop": ['\n']  # Stop generation at newline for cleaner single-value responses
+            }
+            LLM_ENDPOINT = "https://api.together.xyz/v1/completions"  # Example endpoint, replace with actual if different
+            response = requests.post(LLM_ENDPOINT, json=payload, headers=headers)
+
             # Extract the text response
-            if response and 'output' in response and 'choices' in response['output'] and len(response['output']['choices']) > 0:
-                text_response = response['output']['choices'][0]['text'].strip()
-                logging.debug(f"LLM Query: {prompt} -> Response: {text_response}")
-                return text_response
+            # if response and 'output' in response and 'choices' in response['output'] and len(response['output']['choices']) > 0:
+            #     text_response = response['output']['choices'][0]['text'].strip()
+            #     logging.debug(f"LLM Query: {prompt} -> Response: {text_response}")
+            #     return text_response
+            if response.status_code == 200:
+                res = response.json()['choices'][0]['text']
+                print("Response from LLM:")
+                string = ''        
+                for c in res:
+                    if c.isdigit() or c == '.':
+                        string += c
+                        if len(string) == 3:
+                            break
+                string = float(string)
+                print(string)
+                return string
+            # Print the JSON response
+                print(response.json()['choices'][0]['message']['content'])  # Extract the content from the respo
+                string = float(response.json()['choices'][0]['message']['content'][0:3])
+
+                return string
             else:
+                print(response.status_code)
+                print('???????????????????????')
                 logging.warning(f"Received unexpected response structure from LLM: {response}")
                 return None
 
@@ -131,6 +170,7 @@ class LLMInterface:
             return 0.0 # LLM reward shaping disabled
 
         prompt_template = self.config.get('prompt_template_reward')
+
         if not prompt_template:
             logging.warning("Reward shaping prompt template not configured.")
             return 0.0
@@ -141,8 +181,9 @@ class LLMInterface:
             next_state=str(next_state),
             reward=reward
         )
+        #print(f"PROOOOOOOMPT: {prompt}")  # Debugging line to check the prompt
         response = self.query(prompt)
-
+        
         if response:
             try:
                 # Attempt to parse the float response, clamp it to the expected range
@@ -154,7 +195,6 @@ class LLMInterface:
                 logging.warning(f"Could not parse float from LLM reward shaping response: '{response}'")
                 return 0.0 # Return 0 on failure to parse
         else:
-            logging.warning("Failed to get shaped reward from LLM.")
             return 0.0 # Return 0 on API failure
 
 # Example usage (for testing)
