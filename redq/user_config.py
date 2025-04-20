@@ -32,7 +32,8 @@ LLM_CONFIG = {
         "Analyze the following transition: State: {state}, Action: {action}, "
         "Next State: {next_state}, Original Reward: {reward}. "
         "Provide an additional reward signal (a float between -1.0 and 1.0) based on "
-        "how promising this transition is towards achieving the overall goal [Describe Goal Here]. "
+        "how promising this transition is for developing smooth, energy-efficient movement "
+        "and avoiding local optima in continuous control tasks. "
         "Respond with only the float."
     ),
     'call_frequency': 100,  # Call LLM every N steps/updates
