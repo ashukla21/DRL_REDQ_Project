@@ -97,17 +97,16 @@ class REDQSACAgent(object):
         self.llm_interface = LLMInterface()
         # End LLM Integration Setup
 
-    def __get_current_num_data(self):
-        # used to determine whether we should get action from policy or take random starting actions
-        return self.replay_buffer.size
-
-    def get_exploration_action(self, obs, env):
-        # given an observation, output a sampled action in numpy form
+        def __get_current_num_data(self):
+            # used to determine whether we should get action from policy or take random starting actions
+            return self.replay_buffer.size
+    
+        def get_exploration_action(self, obs, env):
         with torch.no_grad():
             if self.__get_current_num_data() > self.start_steps:
                 obs_tensor = torch.Tensor(obs).unsqueeze(0).to(self.device)
-
-                # --- LLM Exploration --- 
+    
+                # --- LLM Exploration ---
                 exploration_noise_scale = None
                 if LLM_CONFIG.get('use_llm_exploration', False) and \
                    self.llm_interface.client and \
@@ -115,18 +114,20 @@ class REDQSACAgent(object):
                     exploration_noise_scale = self.llm_interface.get_exploration_noise_scale(obs)
                     if exploration_noise_scale is not None:
                         logging.info(f"Step {self.total_steps}: LLM suggested noise scale: {exploration_noise_scale}")
-                        # TODO: Apply the suggested noise scale. This might involve:
-                        # 1. Modifying the policy forward pass to accept a noise scale.
-                        # 2. Directly adding noise scaled by this value to the action outside the policy.
-                        pass # Placeholder for applying the scale
+    
+                action_tensor = self.policy_net.forward(obs_tensor, deterministic=False, return_log_prob=False)[0]
+    
+                if exploration_noise_scale is not None:
+                    noise = torch.normal(mean=0.0, std=exploration_noise_scale, size=action_tensor.shape).to(self.device)
+                    action_tensor = action_tensor + noise
+                    action_tensor = torch.clamp(action_tensor, -self.act_limit, self.act_limit)
                 # --- End LLM Exploration ---
-
-                action_tensor = self.policy_net.forward(obs_tensor, deterministic=False,
-                                             return_log_prob=False)[0]
+    
                 action = action_tensor.cpu().numpy().reshape(-1)
             else:
                 action = env.action_space.sample()
         return action
+
 
     def get_test_action(self, obs):
         # given an observation, output a deterministic action in numpy form
