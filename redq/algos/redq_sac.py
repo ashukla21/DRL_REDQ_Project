@@ -112,6 +112,7 @@ class REDQSACAgent(object):
                     self.llm_interface.client and \
                     self.total_steps % LLM_CONFIG.get('call_frequency', 100) == 0:
                     exploration_noise_scale = self.llm_interface.get_exploration_noise_scale(obs)
+                    
                     if exploration_noise_scale is not None:
                         logging.info(f"Step {self.total_steps}: LLM suggested noise scale: {exploration_noise_scale}")
 

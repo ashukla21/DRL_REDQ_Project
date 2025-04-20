@@ -47,7 +47,6 @@ class LLMInterface:
         self.temperature = self.config.get('temperature', 0.7)
 
     def query(self, prompt):
-        return 0
                 
 
         """
@@ -64,13 +63,7 @@ class LLMInterface:
             return None
 
         try:
-            # response = self.client.Complete.create(
-            #     prompt=prompt,
-            #     model=self.model,
-            #     max_tokens=self.max_tokens,
-            #     temperature=self.temperature,
-            #     stop=['\n'] # Stop generation at newline for cleaner single-value responses
-            # )
+
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
@@ -81,16 +74,11 @@ class LLMInterface:
                 "model": self.model,  # Replace with the model name if required
                 "max_tokens": self.max_tokens,
                 "temperature": self.temperature,
-                # "stop": ['\n']  # Stop generation at newline for cleaner single-value responses
             }
             LLM_ENDPOINT = "https://api.together.xyz/v1/completions"  # Example endpoint, replace with actual if different
             response = requests.post(LLM_ENDPOINT, json=payload, headers=headers)
 
-            # Extract the text response
-            # if response and 'output' in response and 'choices' in response['output'] and len(response['output']['choices']) > 0:
-            #     text_response = response['output']['choices'][0]['text'].strip()
-            #     logging.debug(f"LLM Query: {prompt} -> Response: {text_response}")
-            #     return text_response
+
             if response.status_code == 200:
                 res = response.json()['choices'][0]['text']
                 print("Response from LLM:")
@@ -103,14 +91,9 @@ class LLMInterface:
                 string = float(string)
                 print(string)
                 return string
-            # Print the JSON response
-                print(response.json()['choices'][0]['message']['content'])  # Extract the content from the respo
-                string = float(response.json()['choices'][0]['message']['content'][0:3])
 
-                return string
             else:
                 print(response.status_code)
-                print('???????????????????????')
                 logging.warning(f"Received unexpected response structure from LLM: {response}")
                 return None
 
