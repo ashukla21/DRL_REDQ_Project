@@ -1,4 +1,4 @@
-## 🔍 LLM Integration for Adaptive Exploration & Reward Shaping
+## LLM Integration for Adaptive Exploration & Reward Shaping
 
 This branch integrates a **Large Language Model (LLM)** into the REDQ algorithm to enable **adaptive exploration** and **context-aware reward shaping**. The LLM is queried through the [Together.ai API](https://docs.together.ai/), allowing the agent to use semantic knowledge to guide learning in continuous control tasks.
 
