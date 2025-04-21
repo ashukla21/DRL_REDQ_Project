@@ -1,5 +1,4 @@
-## Our implementation video
-LINK HERE
+## Please look at the savoir branch for the delta final project implementation (https://github.com/ashukla21/DRL_REDQ_Project/tree/savior)
 
 ## Data and reproducing figures in REDQ
 We reproduced the figures the authors discussed in the paper, which can all be located under the the plot_utils folder. We used their dataset: https://drive.google.com/file/d/11mjDYCzp3T1MaICGruySrWd-akr-SVJp/view?usp=sharing, (Google Drive Link, ~80 MB)
