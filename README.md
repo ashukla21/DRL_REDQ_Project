@@ -1,4 +1,4 @@
-## Please look at the savoir branch for the delta final project implementation (https://github.com/ashukla21/DRL_REDQ_Project/tree/savior)
+## Please look at the savior branch for the delta final project implementation (https://github.com/ashukla21/DRL_REDQ_Project/tree/savior)
 
 Below is the work done for the midterm report:
 
