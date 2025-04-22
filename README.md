@@ -39,47 +39,65 @@ This branch integrates a **Large Language Model (LLM)** into the REDQ algorithm 
 ##Everything related to main branch, data, and reproducing figures in REDQ:
 We reproduced the figures the authors discussed in the paper, which can all be located under the the plot_utils folder. We used their dataset: https://drive.google.com/file/d/11mjDYCzp3T1MaICGruySrWd-akr-SVJp/view?usp=sharing, (Google Drive Link, ~80 MB)
 
-## Steps that we followed to recreate the results from the paper
-
-First created a conda environment and activated it:
+## How to Run Our Implementation
+Required: Docker
+### (Optional) Launch a compute instance to accelerate training- we used an AWS EC2 C9 instance.
+#### AWS Console:
+Go to the AWS EC2 Dashboard
+In the left sidebar: Network & Security → Key Pairs
+Click Create key pair
+Set:
+Name: redq-key (or whatever)
+Key pair type: RSA
+Private key file format: .pem (for Linux/macOS) or .ppk (for Windows PuTTY)
+Click Create key pair
+It will auto-download redq-key.pem (IMPORTANT: only now)
+Save file
 ```
-conda create -n redq python=3.6
-conda activate redq 
-```
-
-Installed PyTorch (or you can follow the tutorial on PyTorch official website).
-On Ubuntu (might also work on Windows but is not fully tested):
-```
-conda install pytorch==1.3.1 torchvision==0.4.2 cudatoolkit=10.1 -c pytorch
-```
-```
-conda install pytorch==1.3.1 torchvision==0.4.2 -c pytorch
-```
-
-OpenAI's gym (0.17.2):
-```
-git clone https://github.com/openai/gym.git
-cd gym
-git checkout b2727d6
-pip install -e .
-cd ..
+mkdir -p ~/.ssh
+mv ~/Downloads/redq-key.pem ~/.ssh/
+chmod 400 ~/.ssh/redq-key.pem
 ```
 
-mujoco_py (2.0.2.1): 
+#### Then ssh into it, install Docker, and Download and Upload this Repo
+Go to EC2 Dashboard and find the public IP address for the instance you just launched
 ```
-git clone https://github.com/openai/mujoco-py
-cd mujoco-py
-git checkout 379bb19
-pip install -e . --no-cache
-cd ..
+ssh -i ~/path/to/redq-key.pem ec2-user@<EC2_PUBLIC_IP>
+```
+Install Docker on the EC2 Instance
+```
+sudo dnf install -y docker
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker ec2-user
+newgrp docker
+sudo usermod -aG docker ec2-user
+exit
+ssh -i ~/path/to/redq-key.pem ec2-user@<EC2_PUBLIC_IP>
+docker ps
+```
+Then, download this GitHub on local: DRL_REDQ.zip
+Move this to the EC2 instance, SSH into EC2 again, and unzip:
+```
+scp -i ~/path/to/redq-key.pem DRL_REDQ.zip ec2-user@<EC2_PUBLIC_IP>:~
+ssh -i ~/path/to/redq-key.pem ec2-user@<EC2_PUBLIC_IP>
+unzip DRL_REDQ.zip
 ```
 
-Cloned the REDQ repo:
+### Run Training
+If you haven't already, download this GitHub repo and unzip it.
+Then run
 ```
-git clone https://github.com/watchernyu/REDQ.git
-cd REDQ
-pip install -e .
+docker pull cwatcherw/gym-mujocov2:1.0
+docker run  -it --rm  --mount type=bind,source=$(pwd)/REDQ,target=/workspace/REDQ  cwatcherw/gym-mujocov2:1.0
 ```
+Once inside the docker container, run
+```
+pip install click together
+python experiments/train_redq_sac.py --env_name Hopper-v2 --epochs <number_of_epochs>
+```
+We suggest between 15 and 30 epochs to keep EC2 costs low.
+Now, you should be successfully training!
 
 <a name="train-redq"/> 
 
